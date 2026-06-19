@@ -42,7 +42,10 @@ function UserDAO(db) {
             console.log(typeof(id));
 
             user._id = id;
-            usersCol.insert(user, (err, result) => !err ? callback(null, result.ops[0]) : callback(err, null));
+            // mongodb v4+: insert() removed; use insertOne(). Callbacks removed: use Promise.
+            usersCol.insertOne(user)
+                .then(() => callback(null, user))
+                .catch(err => callback(err, null));
         });
     };
 
@@ -66,58 +69,54 @@ function UserDAO(db) {
             */
         };
 
-        // Callback to pass to MongoDB that validates a user document
-        const validateUserDoc = (err, user) => {
-
-            if (err) return callback(err, null);
-
-            if (user) {
-                if (comparePassword(password, user.password)) {
-                    callback(null, user);
+        // mongodb v4+: findOne() no longer accepts a callback; use Promise
+        usersCol.findOne({ userName: userName })
+            .then(user => {
+                if (user) {
+                    if (comparePassword(password, user.password)) {
+                        callback(null, user);
+                    } else {
+                        const invalidPasswordError = new Error("Invalid password");
+                        // Set an extra field so we can distinguish this from a db error
+                        invalidPasswordError.invalidPassword = true;
+                        callback(invalidPasswordError, null);
+                    }
                 } else {
-                    const invalidPasswordError = new Error("Invalid password");
+                    const noSuchUserError = new Error("User: " + user + " does not exist");
                     // Set an extra field so we can distinguish this from a db error
-                    invalidPasswordError.invalidPassword = true;
-                    callback(invalidPasswordError, null);
+                    noSuchUserError.noSuchUser = true;
+                    callback(noSuchUserError, null);
                 }
-            } else {
-                const noSuchUserError = new Error("User: " + user + " does not exist");
-                // Set an extra field so we can distinguish this from a db error
-                noSuchUserError.noSuchUser = true;
-                callback(noSuchUserError, null);
-            }
-        };
-
-        usersCol.findOne({
-            userName: userName
-        }, validateUserDoc);
+            })
+            .catch(err => callback(err, null));
     };
 
     // This is the good one, see the next function
     this.getUserById = (userId, callback) => {
-        usersCol.findOne({
-            _id: parseInt(userId)
-        }, callback);
+        // mongodb v4+: findOne() returns a Promise; no callback argument supported
+        usersCol.findOne({ _id: parseInt(userId) })
+            .then(user => callback(null, user))
+            .catch(err => callback(err, null));
     };
 
     this.getUserByUserName = (userName, callback) => {
-        usersCol.findOne({
-            userName: userName
-        }, callback);
+        // mongodb v4+: findOne() returns a Promise; no callback argument supported
+        usersCol.findOne({ userName: userName })
+            .then(user => callback(null, user))
+            .catch(err => callback(err, null));
     };
 
     this.getNextSequence = (name, callback) => {
-        db.collection("counters").findAndModify({
-                _id: name
-            }, [], {
-                $inc: {
-                    seq: 1
-                }
-            }, {
-                new: true
-            },
-            (err, data) =>  err ? callback(err, null) : callback(null, data.value.seq));
+        // mongodb v4+: findAndModify() removed; use findOneAndUpdate() with returnDocument: "after"
+        // Callbacks removed in v4+: use Promise
+        db.collection("counters").findOneAndUpdate(
+            { _id: name },
+            { $inc: { seq: 1 } },
+            { returnDocument: "after" }
+        )
+        .then(data => callback(null, data.seq))
+        .catch(err => callback(err, null));
     };
 }
 
-module.exports = { UserDAO };
+module.exports = { UserDAO };

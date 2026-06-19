@@ -26,32 +26,28 @@ const AllocationsDAO = function(db){
             bonds: bonds
         };
 
-        allocationsCol.update({
-            userId: parsedUserId
-        }, allocations, {
-            upsert: true
-        }, err => {
+        // mongodb v4+: update() removed; use updateOne() with $set and upsert. Callbacks removed: use Promise.
+        allocationsCol.updateOne(
+            { userId: parsedUserId },
+            { $set: allocations },
+            { upsert: true }
+        )
+        .then(() => {
+            console.log("Updated allocations");
 
-            if (!err) {
+            userDAO.getUserById(userId, (err, user) => {
+                if (err) return callback(err, null);
 
-                console.log("Updated allocations");
+                // add user details
+                allocations.userId = userId;
+                allocations.userName = user.userName;
+                allocations.firstName = user.firstName;
+                allocations.lastName = user.lastName;
 
-                userDAO.getUserById(userId, (err, user) => {
-
-                    if (err) return callback(err, null);
-
-                    // add user details
-                    allocations.userId = userId;
-                    allocations.userName = user.userName;
-                    allocations.firstName = user.firstName;
-                    allocations.lastName = user.lastName;
-
-                    return callback(null, allocations);
-                });
-            }
-
-            return callback(err, null);
-        });
+                return callback(null, allocations);
+            });
+        })
+        .catch(err => callback(err, null));
     };
 
     this.getByUserIdAndThreshold = (userId, threshold, callback) => {
@@ -66,9 +62,9 @@ const AllocationsDAO = function(db){
                 // to inject arbitrary javascript code into the NoSQL query:
                 // 1. 0';while(true){}'
                 // 2. 1'; return 1 == '1
-                // Also implement fix in allocations.html for UX.                             
+                // Also implement fix in allocations.html for UX.
                 const parsedThreshold = parseInt(threshold, 10);
-                
+
                 if (parsedThreshold >= 0 && parsedThreshold <= 99) {
                     return {$where: `this.userId == ${parsedUserId} && this.stocks > ${parsedThreshold}`};
                 }
@@ -83,30 +79,32 @@ const AllocationsDAO = function(db){
             };
         };
 
-        allocationsCol.find(searchCriteria()).toArray((err, allocations) => {
-            if (err) return callback(err, null);
-            if (!allocations.length) return callback("ERROR: No allocations found for the user", null);
+        // mongodb v4+: find().toArray() returns a Promise; no callback argument supported
+        allocationsCol.find(searchCriteria()).toArray()
+            .then(allocations => {
+                if (!allocations.length) return callback("ERROR: No allocations found for the user", null);
 
-            let doneCounter = 0;
-            const userAllocations = [];
+                let doneCounter = 0;
+                const userAllocations = [];
 
-            allocations.forEach( alloc => {
-                userDAO.getUserById(alloc.userId, (err, user) => {
-                    if (err) return callback(err, null);
+                allocations.forEach( alloc => {
+                    userDAO.getUserById(alloc.userId, (err, user) => {
+                        if (err) return callback(err, null);
 
-                    alloc.userName = user.userName;
-                    alloc.firstName = user.firstName;
-                    alloc.lastName = user.lastName;
+                        alloc.userName = user.userName;
+                        alloc.firstName = user.firstName;
+                        alloc.lastName = user.lastName;
 
-                    doneCounter += 1;
-                    userAllocations.push(alloc);
+                        doneCounter += 1;
+                        userAllocations.push(alloc);
 
-                    if (doneCounter === allocations.length) {
-                        callback(null, userAllocations);
-                    }
+                        if (doneCounter === allocations.length) {
+                            callback(null, userAllocations);
+                        }
+                    });
                 });
-            });
-        });
+            })
+            .catch(err => callback(err, null));
     };
 
 };
