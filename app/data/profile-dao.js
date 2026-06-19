@@ -75,38 +75,31 @@ function ProfileDAO(db) {
         }
         */
 
-        users.update({
-                _id: parseInt(userId)
-            }, {
-                $set: user
-            },
-            err => {
-                if (!err) {
-                    console.log("Updated user profile");
-                    return callback(null, user);
-                }
-
-                return callback(err, null);
-            }
-        );
+        // mongodb v4+: update() removed; use updateOne(). Callbacks removed: use Promise.
+        users.updateOne(
+            { _id: parseInt(userId) },
+            { $set: user }
+        )
+        .then(() => {
+            console.log("Updated user profile");
+            return callback(null, user);
+        })
+        .catch(err => callback(err, null));
     };
 
     this.getByUserId = (userId, callback) => {
-        users.findOne({
-                _id: parseInt(userId)
-            },
-            (err, user) => {
-                if (err) return callback(err, null);
+        // mongodb v4+: findOne() returns a Promise; no callback argument supported
+        users.findOne({ _id: parseInt(userId) })
+            .then(user => {
                 /*
                 // Fix for A6 - Sensitive Data Exposure
                 // Decrypt ssn and DOB values to display to user
                 user.ssn = user.ssn ? decrypt(user.ssn) : "";
                 user.dob = user.dob ? decrypt(user.dob) : "";
                 */
-
                 callback(null, user);
-            }
-        );
+            })
+            .catch(err => callback(err, null));
     };
 }
 

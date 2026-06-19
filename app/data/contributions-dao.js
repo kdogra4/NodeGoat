@@ -25,42 +25,34 @@ function ContributionsDAO(db) {
             roth: roth
         };
 
-        contributionsDB.update({
-            userId
-            },
-            contributions, {
-                upsert: true
-            },
-            err => {
-                if (!err) {
-                    console.log("Updated contributions");
-                    // add user details
-                    userDAO.getUserById(parsedUserId, (err, user) => {
+        // mongodb v4+: update() removed; use updateOne() with $set and upsert. Callbacks removed: use Promise.
+        contributionsDB.updateOne(
+            { userId },
+            { $set: contributions },
+            { upsert: true }
+        )
+        .then(() => {
+            console.log("Updated contributions");
+            // add user details
+            userDAO.getUserById(parsedUserId, (err, user) => {
+                if (err) return callback(err, null);
 
-                        if (err) return callback(err, null);
+                contributions.userName = user.userName;
+                contributions.firstName = user.firstName;
+                contributions.lastName = user.lastName;
+                contributions.userId = userId;
 
-                        contributions.userName = user.userName;
-                        contributions.firstName = user.firstName;
-                        contributions.lastName = user.lastName;
-                        contributions.userId = userId;
-
-                        return callback(null, contributions);
-                    });
-                } else {
-                    return callback(err, null);
-                }
-            }
-        );
+                return callback(null, contributions);
+            });
+        })
+        .catch(err => callback(err, null));
     };
 
     this.getByUserId = (userId, callback) => {
-        contributionsDB.findOne({
-                userId: userId
-            },
-            (err, contributions) => {
-                if (err) return callback(err, null);
-
-                // Set defualt contributions if not set
+        // mongodb v4+: findOne() returns a Promise; no callback argument supported
+        contributionsDB.findOne({ userId: userId })
+            .then(contributions => {
+                // Set default contributions if not set
                 contributions = contributions || {
                     preTax: 2,
                     afterTax: 2,
@@ -69,7 +61,6 @@ function ContributionsDAO(db) {
 
                 // add user details
                 userDAO.getUserById(userId, (err, user) => {
-
                     if (err) return callback(err, null);
                     contributions.userName = user.userName;
                     contributions.firstName = user.firstName;
@@ -78,9 +69,9 @@ function ContributionsDAO(db) {
 
                     callback(null, contributions);
                 });
-            }
-        );
+            })
+            .catch(err => callback(err, null));
     };
 }
 
-module.exports = { ContributionsDAO };
+module.exports = { ContributionsDAO };

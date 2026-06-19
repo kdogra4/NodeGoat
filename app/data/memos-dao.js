@@ -20,20 +20,23 @@ function MemosDAO(db) {
             timestamp: new Date()
         };
 
-        memosCol.insert(memos, (err, result) => !err ? callback(null, result) : callback(err, null));
+        // mongodb v4+: insert() removed; use insertOne(). Callbacks removed: use Promise.
+        memosCol.insertOne(memos)
+            .then(result => callback(null, result))
+            .catch(err => callback(err, null));
     };
 
     this.getAllMemos = (callback) => {
 
-        memosCol.find({}).sort({
-            timestamp: -1
-        }).toArray((err, memos) => {
-            if (err) return callback(err, null);
-            if (!memos) return callback("ERROR: No memos found", null);
-            callback(null, memos);
-        });
+        // mongodb v4+: find().sort().toArray() returns a Promise; no callback argument supported
+        memosCol.find({}).sort({ timestamp: -1 }).toArray()
+            .then(memos => {
+                if (!memos) return callback("ERROR: No memos found", null);
+                callback(null, memos);
+            })
+            .catch(err => callback(err, null));
     };
 
 }
 
-module.exports = { MemosDAO };
+module.exports = { MemosDAO };

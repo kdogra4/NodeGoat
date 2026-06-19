@@ -27,13 +27,17 @@ const httpsOptions = {
 };
 */
 
-MongoClient.connect(db, (err, db) => {
+// mongodb v4+ returns MongoClient in callback; extract Db using client.db()
+MongoClient.connect(db, (err, client) => {
     if (err) {
         console.log("Error: DB: connect");
         console.log(err);
         process.exit(1);
     }
     console.log(`Connected to the database`);
+    // Extract the database name from the connection URI (e.g. "mongodb://host:port/dbname")
+    const dbName = db.split("/").pop().split("?")[0] || "nodegoat";
+    const database = client.db(dbName);
 
     /*
     // Fix for A5 - Security MisConfig
@@ -123,13 +127,13 @@ MongoClient.connect(db, (err, db) => {
 
     // Initializing marked library
     // Fix for A9 - Insecure Dependencies
-    marked.setOptions({
-        sanitize: true
-    });
+    // Note: marked v18+ removed the deprecated `sanitize` option.
+    // HTML sanitization must now be handled by a separate sanitizer (e.g. DOMPurify, sanitize-html).
+    // The `sanitize` option was already deprecated since marked v1 and had no effect in recent versions.
     app.locals.marked = marked;
 
     // Application routes
-    routes(app, db);
+    routes(app, database);
 
     // Template system setup
     swig.setDefaults({

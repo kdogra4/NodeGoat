@@ -13,30 +13,23 @@ function BenefitsDAO(db) {
     const usersCol = db.collection("users");
 
     this.getAllNonAdminUsers = callback => {
-        usersCol.find({
-            "isAdmin": {
-                $ne: true
-            }
-        }).toArray((err, users) => callback(null, users));
+        // mongodb v4+: find().toArray() returns a Promise; no callback argument supported
+        usersCol.find({ "isAdmin": { $ne: true } }).toArray()
+            .then(users => callback(null, users))
+            .catch(err => callback(err, null));
     };
 
     this.updateBenefits = (userId, startDate, callback) => {
-        usersCol.update({
-                _id: parseInt(userId)
-            }, {
-                $set: {
-                    benefitStartDate: startDate
-                }
-            },
-            (err, result) => {
-                if (!err) {
-                    console.log("Updated benefits");
-                    return callback(null, result);
-                }
-
-                return callback(err, null);
-            }
-        );
+        // mongodb v4+: update() removed; use updateOne(). Callbacks removed: use Promise.
+        usersCol.updateOne(
+            { _id: parseInt(userId) },
+            { $set: { benefitStartDate: startDate } }
+        )
+        .then(result => {
+            console.log("Updated benefits");
+            return callback(null, result);
+        })
+        .catch(err => callback(err, null));
     };
 }
 
